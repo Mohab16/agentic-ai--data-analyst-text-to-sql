@@ -21,7 +21,7 @@ the SQL tools are its interface. There are no `get_monthly_revenue()` helpers.
 | 4 | Investigator (bounded tool loop, evidence-linked findings) | done |
 | 5 | Reporter + full CLI output | done |
 | 6 | Structured-JSON fallback for models without tool calling | done |
-| **7** | **PostgreSQL adapter (disabled by default)** | **done** |
+| 7 | PostgreSQL adapter (disabled by default) | done |
 | 8 | Golden evaluations, README completion, dependency audit | pending |
 
 **What works now:** configuration validation, plan construction and validation,
@@ -34,10 +34,9 @@ failures and bounded retries, a planner whose JSON is validated in code, and an
 investigator that writes real SQL through a bounded tool loop and returns claims
 that each cite the query that supports them.
 
-**What does not exist yet:** the PostgreSQL adapter (phase 7) and the golden
-evaluations (phase 8). A question runs all three real steps and prints the plan,
-the investigation, the prose answer with assumptions and confidence, and the run
-facts.
+**What does not exist yet:** the golden evaluations (phase 8). A question runs all
+three real steps and prints the plan, the investigation, the prose answer with
+assumptions and confidence, and the run facts.
 ---
 
 ## The mock dataset
@@ -184,6 +183,27 @@ trace keeps one event per step (with the tool names called and the token counts)
 the SQL itself lives in the artifact, because agents do not write traces by design.
 
 ---
+
+## HTTP API
+
+A FastAPI server serves the same pipeline over HTTP (port 8001, Swagger UI at
+`/docs`):
+
+| Method | Path | Body | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/health` | — | `{"status": "ok", "version": "0.1.0"}` |
+| `POST` | `/answer` | `{"question": "..."}` | plan + investigation + prose answer |
+| `POST` | `/plan` | `{"question": "..."}` | validated `InvestigationPlan` only |
+| `POST` | `/investigate` | `{"question": "..."}` | `InvestigationReport` (queries + findings) |
+
+```powershell
+python -m app.main --serve --host 127.0.0.1 --port 8001
+Invoke-WebRequest -Uri http://127.0.0.1:8001/answer `
+  -Method Post -ContentType application/json `
+  -Body '{"question":"Why did revenue drop last month?"}'
+```
+
+Blocking LLM calls run via `asyncio.to_thread` so the event loop stays responsive.
 
 ## Setup
 
