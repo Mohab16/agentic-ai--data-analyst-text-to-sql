@@ -29,6 +29,7 @@ def valid_payload(**overrides: Any) -> dict[str, Any]:
         "metric_definition": (
             "revenue = SUM(order_items.line_total) for orders with status 'completed'"
         ),
+        "metric_type": "gross",
         "timeframe": {
             "start": "2026-10-01",
             "end": "2026-10-31",

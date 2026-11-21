@@ -172,6 +172,7 @@ class InvestigationPlan:
     metric_definition: str
     timeframe: Timeframe
     answerable: bool
+    metric_type: str = "gross"  # "gross" | "net" | "both"
     checks: tuple[Check, ...] = ()
     blocking_gap: str | None = None
     assumptions: tuple[str, ...] = ()

@@ -38,6 +38,7 @@ Reply with exactly one JSON object and nothing else: no prose, no code fences.
 
 {{
   "metric_definition": "one or two sentences: the measure, how it is computed from the tables, and which rows count",
+  "metric_type": "gross | net | both",
   "timeframe": {{
     "start": "YYYY-MM-DD",
     "end": "YYYY-MM-DD",
@@ -59,13 +60,15 @@ Rules:
 - start and end are real calendar dates, start on or before end.
 - metric_definition names the tables and columns a reader needs to reproduce the
   number, and states which rows count (status filter, excluded returns).
+- metric_type MUST be one of: "gross" (sum of line_total, no refund subtraction), "net" (sum of line_total minus refunds), or "both" (compute both). 
+  If the question asks about "revenue drop", choose "gross" unless refunds are explicitly mentioned.
 - Write between 1 and {max_checks} checks, broad first. ids are c1, c2, ...
   A method is a description of the calculation, never SQL: you do not know the
   dialect or the exact column types, and the investigator writes the query.
 - If the schema cannot answer the question, set answerable to false, explain the
   missing data in blocking_gap, and leave checks empty. Never invent a table.
 - A plan tests hypotheses. It does not conclude causes.
-"""
+}}"""
 
 
 class PlanPayloadInvalid(ReplyInvalid):
@@ -147,6 +150,7 @@ def parse_plan_payload(payload: Any, *, max_checks: int) -> InvestigationPlan:
     problems: list[str] = []
 
     metric = _text(payload.get("metric_definition"), "metric_definition", problems)
+    metric_type = _metric_type(payload.get("metric_type"), problems)
     timeframe = _timeframe(payload.get("timeframe"), problems)
 
     raw_answerable = payload.get("answerable")
@@ -178,6 +182,7 @@ def parse_plan_payload(payload: Any, *, max_checks: int) -> InvestigationPlan:
 
     return InvestigationPlan(
         metric_definition=metric,
+        metric_type=metric_type,
         timeframe=timeframe,
         answerable=bool(answerable),
         checks=tuple(checks),
@@ -191,6 +196,7 @@ def render_plan_summary(plan: InvestigationPlan) -> str:
     timeframe = plan.timeframe
     lines = [
         f"metric: {plan.metric_definition}",
+        f"metric_type: {plan.metric_type}",
         (
             f"timeframe: {timeframe.start} .. {timeframe.end} "
             f"(comparison: {timeframe.comparison}, granularity: {timeframe.granularity})"
@@ -330,6 +336,19 @@ def _text_list(value: Any, field: str, problems: list[str]) -> list[str]:
             continue
         items.append(item.strip()[: _TEXT_LIMIT])
     return items
+
+
+def _metric_type(value: Any, problems: list[str]) -> str:
+    """Validate metric_type is one of the allowed values."""
+    allowed = {"gross", "net", "both"}
+    if value is None or not isinstance(value, str):
+        problems.append("metric_type must be one of: gross, net, both")
+        return "gross"
+    mt = value.strip().lower()
+    if mt not in allowed:
+        problems.append(f"metric_type must be one of: gross, net, both (got {value!r})")
+        return "gross"
+    return mt
 
 
 def _repair_turn(
