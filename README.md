@@ -10,7 +10,7 @@ the SQL tools are its interface. There are no `get_monthly_revenue()` helpers.
 
 ---
 
-## Status: Phase 6 of 8
+## Status: Phase 7 of 8 Complete
 
 | Phase | Scope | Status |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ the SQL tools are its interface. There are no `get_monthly_revenue()` helpers.
 | 5 | Reporter + full CLI output | done |
 | 6 | Structured-JSON fallback for models without tool calling | done |
 | 7 | PostgreSQL adapter (disabled by default) | done |
-| 8 | Golden evaluations, README completion, dependency audit | pending |
+| 8 | Golden evaluations, dependency audit | pending |
 
 **What works now:** configuration validation, plan construction and validation,
 context assembly with a hard budget, append-only JSONL traces with secret
@@ -30,13 +30,18 @@ redaction, the step loop with wall-clock enforcement, a seeded read-only SQLite
 warehouse, schema introspection, the schema digest + `inspect_schema` tool, a
 code-enforced SQL guard, real SQL execution with a row cap and a statement
 timeout, failure forensics by `error_id`, an OpenAI-compatible client with typed
-failures and bounded retries, a planner whose JSON is validated in code, and an
+failures and bounded retries, a planner whose JSON is validated in code, an
 investigator that writes real SQL through a bounded tool loop and returns claims
-that each cite the query that supports them.
+that each cite the query that supports them, a reporter that produces a final
+answer with evidence citations and confidence levels, a structured-JSON fallback
+for models without native tool calling, and a PostgreSQL adapter for production
+use.
 
-**What does not exist yet:** the golden evaluations (phase 8). A question runs all
-three real steps and prints the plan, the investigation, the prose answer with
-assumptions and confidence, and the run facts.
+**What does not exist yet:** the golden evaluations (phase 8) pass fully. The test
+infrastructure exists in `tests/test_golden.py` but the tests currently fail due
+to stale expected values (hardcoded mock database counts that have shifted with
+seed changes). The pipeline runs end-to-end; only the test fixtures need updating
+to match the current deterministic mock data.
 ---
 
 ## The mock dataset

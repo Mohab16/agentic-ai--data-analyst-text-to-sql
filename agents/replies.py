@@ -45,12 +45,24 @@ def extract_json(text: str) -> Any:
         ) from None
 
 
-def repair_instruction(problems: Sequence[str], *, validator: str) -> str:
+def repair_instruction(
+    problems: Sequence[str],
+    *,
+    validator: str,
+    valid_ids: str = "",
+    allowed_values: str = "",
+) -> str:
     """The user message that sends a rejected reply back with its problems."""
     listed = "\n".join(f"- {problem}" for problem in problems)
+    extras = ""
+    if valid_ids:
+        extras += f"\n- Valid query_id values: {valid_ids}"
+    if allowed_values:
+        extras += f"\n- Allowed values: {allowed_values}"
     return (
         f"Your previous reply was rejected by the {validator}:\n"
-        f"{listed}\n\n"
+        f"{listed}"
+        f"{extras}\n\n"
         "Rules you must follow:\n"
         "- Every number in a finding must appear EXACTLY as-is in the query "
         "results above. Do not compute, subtract, round, or derive any new number.\n"

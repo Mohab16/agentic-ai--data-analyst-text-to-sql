@@ -29,10 +29,11 @@ from core.config import Settings
 from core.context import read_artifact
 from core.orchestrator import AgentFn
 from core.types import AgentResult, AnswerFinding, FinalAnswer, to_dict
+from core.utils import is_slug as _is_slug
 from llm.base import LLMClient, LLMError, LLMRequest, Message
 
-_HEADLINE_LIMIT = 200
-_ANSWER_LIMIT = 4000
+_HEADLINE_LIMIT = 100
+_ANSWER_LIMIT = 2000
 _FINDINGS_MAX = 10
 _CLAIM_LIMIT = 600
 _TEXT_LIMIT = 300
@@ -59,10 +60,15 @@ Rules that are checked in code, not trusted:
   same query. Do not compute new numbers, round into a new number, or carry a number
   over from a query that is not cited. If you need a cut the evidence does not have,
   say what is missing in the answer or in limitations instead of estimating it.
-- confidence is "high" only when the investigation finished on its own and the plan
-  said the question is answerable. It must be "low" when the plan said the schema
-  cannot answer the question, or when the investigation produced no findings.
-  Otherwise "medium".
+- For a finding's `numbers`, copy only values from the investigator finding(s) named
+  by that finding's `evidence_query_ids`. Query previews, SQL output, and numbers
+  from other findings are not allowed substitutes. If no approved value supports a
+  number, omit that number key and describe the limitation instead.
+- confidence is "high" only when the investigation's stop reason is exactly
+  "model_finished" and the plan said the question is answerable. If the stop reason
+  is anything else (e.g., "query_budget", "max_turns"), use "medium" or "low".
+  It must be "low" when the plan said the schema cannot answer the question, or
+  when the investigation produced no findings. Otherwise "medium".
 - Every limitation must be specific to this answer: a partial period, a metric
   definition, a missing table, or correlation mistaken for cause. "Results may vary"
   is not a limitation.
@@ -130,13 +136,23 @@ def make_reporter(client: LLMClient) -> AgentFn:
                 extract_json(response.text), evidence=evidence, plan=plan
             )
         except ReplyInvalid as exc:
+            repair_instruction_text = repair_instruction(
+                exc.problems,
+                validator="answer validator",
+                allowed_values="confidence: 'low', 'medium', or 'high'",
+            )
             repair = [
                 Message(role="user", content=context),
                 Message(role="assistant", content=response.text),
                 Message(
                     role="user",
-                    content=repair_instruction(
-                        exc.problems, validator="answer validator"
+                    content=(
+                        repair_instruction_text
+                        + "\n\nFor numeric findings, use only the values listed as "
+                        "available by the validator for that finding's cited query "
+                        "ids. Copy the value exactly or remove that number key; do "
+                        "not substitute a count or another metric from a query "
+                        "preview."
                     ),
                 ),
             ]
@@ -387,7 +403,7 @@ def _check_confidence(
     if stop_reason and stop_reason != "model_finished" and confidence == "high":
         problems.append(
             f"confidence 'high' is not supported: the investigation stopped with "
-            f"{stop_reason}"
+            f"{stop_reason}. Use 'medium' or 'low' instead."
         )
     if plan.get("answerable") is False and confidence != "low":
         problems.append(
@@ -443,18 +459,17 @@ def _strings(value: Any, field: str, problems: list[str]) -> list[str]:
 
 
 def _confidence(value: Any, problems: list[str]) -> str:
+    """Parse and validate the confidence field.
+    
+    Returns the confidence value or None if invalid, letting the caller
+    handle the problem consistently.
+    """
     if not isinstance(value, str) or value.strip().lower() not in _CONFIDENCE:
         problems.append(
             "confidence must be one of " + ", ".join(repr(item) for item in _CONFIDENCE)
         )
         return "medium"
     return value.strip().lower()
-
-
-def _is_slug(value: str) -> bool:
-    if not value or not value[0].isalpha() or not value[0].islower():
-        return False
-    return all(ch.islower() or ch.isdigit() or ch == "_" for ch in value)
 
 
 # --------------------------------------------------------------------------

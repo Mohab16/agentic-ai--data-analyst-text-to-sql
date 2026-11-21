@@ -20,10 +20,11 @@ from agents.replies import ReplyInvalid, extract_json, repair_instruction
 from core.config import Settings
 from core.orchestrator import AgentFn
 from core.types import AgentResult, Check, InvestigationPlan, Timeframe, to_dict
+from core.utils import is_slug as _is_slug
 from llm.base import LLMClient, LLMError, LLMRequest, Message
 
 _GRANULARITIES = frozenset({"day", "week", "month"})
-_TEXT_LIMIT = 400
+_TEXT_LIMIT = 200
 _DIMENSION_LIMIT = 40
 _MAX_DIMENSIONS = 6
 
@@ -329,12 +330,6 @@ def _text_list(value: Any, field: str, problems: list[str]) -> list[str]:
             continue
         items.append(item.strip()[: _TEXT_LIMIT])
     return items
-
-
-def _is_slug(value: str) -> bool:
-    if not value or not value[0].islower() or not value[0].isalpha():
-        return False
-    return all(ch.islower() or ch.isdigit() or ch == "_" for ch in value)
 
 
 def _repair_turn(

@@ -30,6 +30,7 @@ from db.base import (
 from db.seed import SeedConfig, build_dataset, create_schema, data_span, insert_dataset
 
 # Every action that could change the database, the connection, or its schema.
+# Includes INSERT OR REPLACE via SQLITE_INSERT.
 _DENIED_ACTIONS = frozenset(
     {
         sqlite3.SQLITE_INSERT,
@@ -81,9 +82,12 @@ def _authorizer(
 
 
 def _classify_error(exc: sqlite3.Error) -> str:
-    """Map a driver message onto a kind the model can act on."""
+    """Map a driver message onto a kind the model can act on.
+    
+    Uses lowercase comparison for locale-independence.
+    """
     message = str(exc).lower()
-    if "interrupted" in message:
+    if "interrupted" in message or "timeout" in message or "cancel" in message:
         return "timeout"
     if "not authorized" in message or "readonly" in message:
         return "forbidden"

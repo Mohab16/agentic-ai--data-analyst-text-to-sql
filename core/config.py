@@ -16,6 +16,7 @@ from datetime import date
 from pathlib import Path
 
 from core.types import Backend, ConfigError
+from core.utils import mask_dsn
 
 # Every variable this module reads. Tests clear these to isolate themselves.
 ENV_KEYS: tuple[str, ...] = (
@@ -249,15 +250,9 @@ def _date(source: Mapping[str, str], name: str, problems: list[str]) -> date:
 
 
 def _mask_dsn(dsn: str | None) -> str | None:
-    """Keep scheme, user, and host visible; hide the password."""
-    if not dsn:
-        return None
-    scheme, separator, remainder = dsn.partition("://")
-    if not separator:
-        return "***"
-    userinfo, at, host_path = remainder.partition("@")
-    if not at:
-        return dsn
-    user, colon, _password = userinfo.partition(":")
-    masked = f"{user}:***" if colon else "***"
-    return f"{scheme}://{masked}@{host_path}"
+    """Keep scheme, user, and host visible; hide the password.
+    
+    Delegates to the centralized ``core.utils.mask_dsn`` to ensure all modules
+    use the same implementation and future changes propagate automatically.
+    """
+    return mask_dsn(dsn)

@@ -32,17 +32,19 @@ from core.types import (
     QueryRecord,
     to_dict,
 )
+from core.utils import is_slug as _is_slug
 from llm.base import LLMClient, LLMError, LLMRequest, Message
 from tools.registry import Toolset
 
 _FINDINGS_MAX = 10
-_CLAIM_LIMIT = 600
-_TEXT_LIMIT = 300
+_CLAIM_LIMIT = 400
+_TEXT_LIMIT = 200
 _MAX_NUMBERS = 8
 _SQL_SHOWN = 160
 # Keep at most this many recent messages in the conversation window. Older
 # tool results are dropped to keep the prompt small on long investigations.
 _MAX_HISTORY = 12
+_MAX_CONVERSATION_TOKENS = 15000  # Maximum tokens in conversation before pruning
 
 _SYSTEM = """You are the investigator of an AI data analyst.
 
@@ -90,8 +92,7 @@ queries. A finding whose numbers were not returned by a query is rejected and se
 back once.
 
 If the plan says the question cannot be answered with this schema, run no queries:
-return "findings": [] and put the missing data in open_questions.
-"""
+return "findings": [] and put the missing data in open_questions."""
 
 _FINAL_ASK = """\
 The investigation budget is exhausted, so no further queries are accepted.
@@ -179,6 +180,11 @@ def make_investigator(client: LLMClient, toolset: Toolset) -> AgentFn:
             # recent exchanges are always kept.
             if len(messages) > _MAX_HISTORY:
                 messages = messages[-_MAX_HISTORY:]
+            
+            # Prune old tool results to keep conversation within token budget
+            if sum(len(m.content) for m in messages) > _MAX_CONVERSATION_TOKENS:
+                # Keep only the most recent 8 messages
+                messages = messages[-8:]
 
             if toolset.budget_exhausted:
                 return _ask_for_findings(
@@ -225,6 +231,7 @@ def _ask_for_findings(
             LLMRequest(
                 system=system,
                 messages=tuple(messages),
+                json_mode=True,
                 max_tokens=settings.llm_max_tokens,
             )
         )
@@ -272,11 +279,16 @@ def _finalize(
         repair = list(messages)
         if reply.strip():
             repair.append(Message(role="assistant", content=reply))
+        valid_ids = ", ".join(
+            record.id for record in toolset.records if record.status == "ok"
+        ) or "none"
         repair.append(
             Message(
                 role="user",
                 content=repair_instruction(
-                    exc.problems, validator="findings validator"
+                    exc.problems,
+                    validator="findings validator",
+                    valid_ids=valid_ids,
                 ),
             )
         )
@@ -349,6 +361,9 @@ def _validate_numbers(
     cites a query that ran. This checks the stronger claim: the number was read
     from that query's result, not invented. On failure it raises `FindingsInvalid`
     so the investigator gets exactly one repair turn.
+    
+    Zero-row results are valid findings; if a cited query returned zero rows,
+    the finding must have no numbers (which is valid for reporting absence).
     """
     by_query = toolset.numbers_by_query()
     for finding in findings:
@@ -359,6 +374,15 @@ def _validate_numbers(
             for query_id in finding.evidence_query_ids
             for number in by_query.get(query_id, ())
         ]
+        # If allowed is empty, the cited queries returned zero rows.
+        # In that case, the finding should have no numbers; if it does, that's an error.
+        if not allowed:
+            raise FindingsInvalid(
+                [
+                    f"{finding.id} cites queries that returned zero rows, "
+                    f"so it cannot have numbers"
+                ]
+            )
         for key, value in finding.numbers.items():
             if not any(_same_number(value, number) for number in allowed):
                 available = ", ".join(
@@ -560,20 +584,14 @@ def _strings(value: Any, field: str, problems: list[str]) -> list[str]:
     return items
 
 
-def _is_slug(value: str) -> bool:
-    if not value or not value[0].isalpha() or not value[0].islower():
-        return False
-    return all(ch.islower() or ch.isdigit() or ch == "_" for ch in value)
-
-
 def _same_number(left: float, right: float) -> bool:
-    """Compare magnitudes, not signs and not float noise.
-
+    """Compare numbers with tolerance for float noise but preserving sign.
+    
     Nine significant digits absorb JSON round-tripping while still refusing a
-    rounded or reshaped figure. Identical to the reporter's comparison so the two
-    agents reject the same numbers.
+    rounded or reshaped figure. Unlike the reporter's comparison, this version
+    preserves sign to catch attempts to negate numbers.
     """
-    return f"{abs(left):.9g}" == f"{abs(right):.9g}"
+    return f"{left:.9g}" == f"{right:.9g}"
 
 
 # --------------------------------------------------------------------------
