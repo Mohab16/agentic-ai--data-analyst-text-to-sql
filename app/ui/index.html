@@ -2107,17 +2107,12 @@
             const q = $('#question-input').value.trim();
             if (!q) { alert('Enter a question'); return; }
             
+            // Reset complete workbench state before new investigation
+            resetWorkbench();
+            
             const btn = $('#ask-btn');
             btn.disabled = true;
             btn.classList.add('loading');
-            
-            // Show results area
-            $('#results-area').style.display = 'flex';
-            $('#empty-state').style.display = 'flex';
-            $('#answer-body').style.display = 'none';
-            
-            // Reset progress to step 1 (Plan)
-            setProgress(0, 'active');
 
             try {
                 const res = await fetch('/answer', {
