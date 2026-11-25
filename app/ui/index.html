@@ -780,6 +780,11 @@
             transition: width 0.3s ease;
         }
 
+        /* Added for responsive progress animation */
+        .wb-progress-fill.animated {
+            transition: width 3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
         .wb-progress-steps {
             display: flex;
             justify-content: space-between;
@@ -826,7 +831,7 @@
         .wb-step-num {
             width: 24px;
             height: 24px;
-            border-radius: 50%;
+            border-radius: var(--border-radius-panel);
             background: var(--surface-color);
             border: 2px solid var(--border);
             display: flex;
