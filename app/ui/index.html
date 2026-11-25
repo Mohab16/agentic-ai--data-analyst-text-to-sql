@@ -2109,9 +2109,6 @@
             const q = $('#question-input').value.trim();
             if (!q) { alert('Enter a question'); return; }
             
-            // Reset complete workbench state before new investigation
-            resetWorkbench();
-            
             const btn = $('#ask-btn');
             btn.disabled = true;
             btn.classList.add('loading');
@@ -2135,17 +2132,15 @@
                 }
 
                 // Simulate progress
-                setProgress(1, 'running'); // Step 1: Execute
+                // Step 0 (Plan) is initially active; delay for plan then execute running
                 setTimeout(() => {
-                    setProgress(1, 'done');
-                    setProgress(2, 'running');
-                    setTimeout(() => {
-                        setProgress(2, 'done');
-                        renderAnswer(data);
-                        btn.disabled = false;
-                        btn.classList.remove('loading');
-                    }, 1500);
-                }, 2500);
+                    setProgress(1, 'running'); // Step 1: Execute running after delay
+                    // When execute completes, immediately show answer done
+                    setProgress(2, 'done');
+                    renderAnswer(data);
+                    btn.disabled = false;
+                    btn.classList.remove('loading');
+                }, 1500);
             } catch(e) { 
                 alert('Network error: ' + e); 
                 resetWorkbench(); 
