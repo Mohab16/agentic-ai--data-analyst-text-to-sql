@@ -2130,6 +2130,13 @@
                 }
                 const data = await res.json(); // AnswerResponse shape
 
+                // Handle answer_invalid error gracefully
+                if (data.detail && data.detail.error_message && data.detail.error_message.includes('answer_invalid')) {
+                    alert('The LLM returned an empty answer. Please try rephrasing your question.');
+                    resetWorkbench();
+                    return;
+                }
+
                 // Simulate progress
                 setProgress(1, 'running'); // Step 1: Execute
                 setTimeout(() => {
