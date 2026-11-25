@@ -919,7 +919,6 @@
             align-items: center;
             padding: 1rem 1.25rem;
             border-bottom: 1px solid var(--border);
-            border-radius: var(--border-radius-panel) var(--border-radius-panel) 0 0;
         }
 
         .wb-panel-header h2 {
@@ -1204,6 +1203,7 @@
 
         .wb-tab-panel {
             animation: fadeIn 0.15s ease;
+            border-radius: var(--border-radius-panel);
         }
 
         @keyframes fadeIn {
@@ -1341,7 +1341,6 @@
             padding: 0.75rem 1rem;
             background: var(--surface-color);
             border-bottom: 1px solid var(--border);
-            border-radius: var(--border-radius-panel) var(--border-radius-panel) 0 0;
             cursor: pointer;
         }
 
@@ -2112,6 +2111,14 @@
             const btn = $('#ask-btn');
             btn.disabled = true;
             btn.classList.add('loading');
+            
+            // Show results area
+            $('#results-area').style.display = 'flex';
+            $('#empty-state').style.display = 'flex';
+            $('#answer-body').style.display = 'none';
+            
+            // Reset progress to step 1 (Plan)
+            setProgress(0, 'active');
 
             try {
                 const res = await fetch('/answer', {
@@ -2132,15 +2139,17 @@
                 }
 
                 // Simulate progress
-                // Step 0 (Plan) is initially active; delay for plan then execute running
+                setProgress(1, 'running'); // Step 1: Execute
                 setTimeout(() => {
-                    setProgress(1, 'running'); // Step 1: Execute running after delay
-                    // When execute completes, immediately show answer done
-                    setProgress(2, 'done');
-                    renderAnswer(data);
-                    btn.disabled = false;
-                    btn.classList.remove('loading');
-                }, 1500);
+                    setProgress(1, 'done');
+                    setProgress(2, 'running');
+                    setTimeout(() => {
+                        setProgress(2, 'done');
+                        renderAnswer(data);
+                        btn.disabled = false;
+                        btn.classList.remove('loading');
+                    }, 1500);
+                }, 2500);
             } catch(e) { 
                 alert('Network error: ' + e); 
                 resetWorkbench(); 
