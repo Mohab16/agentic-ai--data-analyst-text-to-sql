@@ -1,0 +1,2471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Data Analyst Workbench</title>
+    <style>
+        /* ---------- App Root & Typography ---------- */
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --card-border: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-blue: #38bdf8;
+            --accent-green: #4ade80;
+            --accent-red: #f87171;
+            --accent-amber: #fbbf24;
+            --surface: #0b1120;
+            --border-radius: 8px;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { font-size: 16px; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            line-height: 1.5;
+            padding: 1rem;
+        }
+
+        h1, h2, h3 { font-weight: 600; margin-bottom: 0.5rem; }
+
+        p { margin-bottom: 0.75rem; }
+
+        /* ---------- Navbar (unified header for all views) ---------- */
+        .navbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background-color: var(--surface);
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            gap: 1rem;
+        }
+
+        .brand {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+            letter-spacing: -0.5px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .nav-tab {
+            background: transparent;
+            border: 1px solid var(--card-border);
+            color: var(--text-muted);
+            padding: 0.45rem 0.9rem;
+            border-radius: var(--border-radius);
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: color 0.15s ease, border-color 0.15s ease;
+        }
+
+        .nav-tab:hover { color: var(--text-main); border-color: var(--accent-blue); }
+
+        .nav-tab.active { background: rgba(56,189,248,0.15); color: var(--accent-blue); border-color: var(--accent-blue); }
+
+        .health-indicator {
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            background: var(--accent-red);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        /* ---------- View switching via content ---------- */
+        .view { display: none; }
+        .view.active { display: block; }
+        #view-traces.active { display: flex; }
+        #view-workbench.active { display: flex; flex-direction: column; height: 100%; }
+
+        /* ---------- Query Panel ---------- */
+        .query-panel {
+            max-width: 1100px;
+            margin: 1.5rem auto 0;
+            padding: 0 0.75rem;
+        }
+
+        .query-header {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .question-input {
+            flex: 1;
+            min-width: 280px;
+            padding: 0.75rem 1rem;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--border-radius);
+            color: var(--text-main);
+            font-size: 1rem;
+            outline: none;
+            resize: vertical;
+        }
+
+        .question-input:focus { border-color: var(--accent-blue); }
+
+        .preset-chip {
+            background: rgba(56,189,248,0.1);
+            color: var(--accent-blue);
+            border: 1px solid rgba(56,189,248,0.3);
+            padding: 0.4rem 0.7rem;
+            border-radius: var(--border-radius);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .preset-chip:hover { background: rgba(56,189,248,0.2); }
+
+        .preset-chip:active { background: rgba(56,189,248,0.3); }
+
+        .run-progress {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-top: 1.5rem;
+            padding: 0 1rem;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .step-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            position: relative;
+        }
+
+        .progress-step {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--card-bg);
+            border: 2px solid var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: all 0.2s ease;
+            z-index: 2;
+        }
+
+        .step-label {
+            margin-top: 0.75rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        .step-item.active .progress-step { background: var(--accent-blue); border-color: var(--accent-blue); color: var(--bg-color); }
+        .step-item.active .step-label { color: var(--accent-blue); }
+
+        .step-item.running .progress-step { background: var(--accent-amber); border-color: var(--accent-amber); color: var(--bg-color); }
+        .step-item.running .step-label { color: var(--accent-amber); }
+
+        .step-item.done .progress-step { background: var(--accent-green); border-color: var(--accent-green); color: var(--bg-color); }
+        .step-item.done .step-label { color: var(--accent-green); }
+
+        /* ---------- Results Area (Two-Column) ---------- */
+        .results {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        @media (max-width: 900px) { .results { grid-template-columns: 1fr; } }
+
+        .answer-card, .plan-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--border-radius); padding: 1rem; }
+
+        .answer-card h3 { margin-bottom: 0.75rem; }
+
+        .answer-card p { white-space: pre-wrap; font-size: 0.95rem; }
+
+        .confidence-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .badge-high { background: rgba(74,222,128,0.15); color: var(--accent-green); }
+        .badge-medium { background: rgba(251,191,36,0.15); color: var(--accent-amber); }
+        .badge-low { background: rgba(248,113,113,0.15); color: var(--accent-red); }
+
+        .evidence-chip {
+            display: inline-block;
+            background: rgba(251,191,36,0.15);
+            color: var(--accent-amber);
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.75rem;
+            margin-right: 0.3rem;
+            margin-bottom: 0.2rem;
+            cursor: pointer;
+        }
+
+        .evidence-chip:hover { background: rgba(251,191,36,0.25); }
+
+        .run-footer {
+            margin-top: 1rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--card-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+
+        .task-id { color: var(--accent-blue); font-family: monospace; }
+
+        .inspect-btn { padding: 0.4rem 0.8rem; background: var(--accent-blue); color: #0f172a; border: none; border-radius: var(--border-radius); font-size: 0.75rem; cursor: pointer; }
+
+        .inspect-btn:hover { background: #2563eb; color: white; }
+
+        /* Plan Card Content */
+        .plan-card .info-row { margin-bottom: 0.75rem; }
+        .plan-card .info-label { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 0.2rem; }
+        .plan-card .info-value { color: var(--text-main); }
+
+        .plan-card .checks-list { margin-top: 0.5rem; }
+        .plan-card .checks-list .check { background: rgba(251,191,36,0.1); color: var(--accent-amber); padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.75rem; margin-right: 0.3rem; margin-bottom: 0.2rem; display: inline-block; }
+        .plan-card .note, .plan-card .limitation { margin-top: 0.4rem; padding-left: 0.5rem; border-left: 3px solid var(--accent-amber); }
+
+        /* SQL Highlighting Helper */
+        function highlightSql(sql) {
+            if (!sql) return '';
+            const escaped = sql
+                .replace(/&/g, "&")
+                .replace(/</g, "<")
+                .replace(/>/g, ">");
+            const keywords = [
+                "SELECT", "FROM", "WHERE", "AND", "OR", "NOT", "LIKE", "IN", "IS", "NULL",
+                "JOIN", "LEFT", "RIGHT", "INNER", "OUTER", "ON", "AS", "ORDER", "BY", "GROUP",
+                "HAVING", "LIMIT", "OFFSET", "AS", "WITH", "CTE"
+            ];
+            const pattern = new RegExp(`\\b(${keywords.join('|')})\\b`, 'gi');
+            return escaped.replace(pattern, match => `<span style="color: var(--accent-blue); font-weight: 600;">${match}</span>`);
+        }
+
+        /* ---------- Trace View keeps its own styles via existing index.html content ---------- */
+        /* We load trace-view styles after the main styles so they can override if needed */
+
+        /* ============ TRACE DETAILS STYLES ============ */
+        .trace-summary-bar {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--border-radius);
+        }
+
+        .summary-stat {
+            flex: 1;
+            min-width: 140px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            padding: 0.5rem;
+            background: var(--surface);
+            border-radius: 6px;
+        }
+
+        .summary-stat.summary-error {
+            border-left: 3px solid var(--accent-red);
+        }
+
+        .summary-stat.summary-ok {
+            border-left: 3px solid var(--accent-green);
+        }
+
+        .summary-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .summary-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .trace-steps-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .step-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+
+        .step-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .step-card.step-error {
+            border-color: rgba(248,113,113,0.5);
+        }
+
+        .step-card.step-success {
+            border-color: rgba(74,222,128,0.3);
+        }
+
+        .step-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.875rem 1rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--card-border);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .step-card-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .step-number {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+            background: rgba(56,189,248,0.15);
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .step-agent {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-main);
+            text-transform: capitalize;
+        }
+
+        .step-id {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-family: monospace;
+            background: var(--card-bg);
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+        }
+
+        .step-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .step-duration {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+
+        .step-toggle {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            transition: transform 0.2s ease;
+        }
+
+        .step-card.step-collapsed .step-toggle {
+            transform: rotate(-90deg);
+        }
+
+        .step-card-body {
+            padding: 1rem;
+            display: block;
+            animation: slideDown 0.2s ease;
+        }
+
+        .step-card.step-collapsed .step-card-body {
+            display: none;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .step-details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .step-detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .step-detail-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .step-detail-value {
+            font-size: 0.85rem;
+            color: var(--text-main);
+            word-break: break-all;
+        }
+
+        .step-hash {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: var(--accent-amber);
+        }
+
+        .step-tool-calls {
+            margin: 1rem 0;
+            padding: 0.75rem;
+            background: rgba(251,191,36,0.1);
+            border: 1px solid rgba(251,191,36,0.3);
+            border-radius: 6px;
+        }
+
+        .step-detail-label {
+            display: inline-block;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-right: 0.5rem;
+        }
+
+        .tool-chip {
+            display: inline-block;
+            background: rgba(251,191,36,0.2);
+            color: var(--accent-amber);
+            font-family: monospace;
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            margin: 0.2rem 0.25rem 0.2rem 0;
+        }
+
+        .step-error-detail {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: rgba(248,113,113,0.15);
+            border: 1px solid rgba(248,113,113,0.3);
+            border-radius: 6px;
+            color: var(--accent-red);
+            font-family: monospace;
+            font-size: 0.8rem;
+            white-space: pre-wrap;
+        }
+
+        .step-raw-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding: 0.5rem 0.75rem;
+            background: var(--surface);
+            border: 1px solid var(--card-border);
+            border-radius: 6px;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.15s ease;
+        }
+
+        .step-raw-toggle:hover {
+            background: var(--card-bg);
+            color: var(--accent-blue);
+            border-color: var(--accent-blue);
+        }
+
+        .raw-toggle-icon {
+            font-size: 0.6rem;
+            transition: transform 0.2s ease;
+        }
+
+        .step-raw-toggle.active .raw-toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .step-raw-json {
+            display: none;
+            margin-top: 0.75rem;
+            padding: 1rem;
+            background: #0f172a;
+            border: 1px solid var(--card-border);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--text-main);
+            overflow-x: auto;
+            white-space: pre-wrap;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .step-raw-json.visible {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .badge {
+            font-size: 0.65rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-error {
+            background: rgba(248,113,113,0.2);
+            color: var(--accent-red);
+        }
+
+        .badge-ok {
+            background: rgba(74,222,128,0.2);
+            color: var(--accent-green);
+        }
+
+        /* ============ WORKBENCH STYLES ============ */
+        /* Header */
+        .wb-header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--card-border);
+            padding: 1rem 1.5rem;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .wb-header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .wb-title-block h1 {
+            font-size: 1.375rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin: 0 0 0.25rem;
+        }
+
+        .wb-subtitle {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        .wb-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .preset-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.375rem;
+        }
+
+        .preset-chip {
+            background: rgba(56,189,248,0.1);
+            color: var(--accent-blue);
+            border: 1px solid rgba(56,189,248,0.3);
+            padding: 0.375rem 0.75rem;
+            border-radius: var(--border-radius);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .preset-chip:hover {
+            background: rgba(56,189,248,0.2);
+            border-color: var(--accent-blue);
+        }
+
+        .preset-chip:focus-visible {
+            outline: 2px solid var(--accent-blue);
+            outline-offset: 2px;
+        }
+
+        .wb-input-row {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .wb-question-input {
+            flex: 1;
+            min-width: 0;
+            padding: 0.75rem 1rem;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--border-radius);
+            color: var(--text-main);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .wb-question-input:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(56,189,248,0.15);
+        }
+
+        .wb-submit-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--accent-blue);
+            color: var(--bg-color);
+            border: none;
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s ease, transform 0.1s ease;
+            white-space: nowrap;
+        }
+
+        .wb-submit-btn:hover:not(:disabled) {
+            background: #2563eb;
+        }
+
+        .wb-submit-btn:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        .wb-submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .wb-submit-btn .btn-loader {
+            display: none;
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .wb-submit-btn.loading .btn-text {
+            display: none;
+        }
+
+        .wb-submit-btn.loading .btn-loader {
+            display: block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Progress Bar */
+        .wb-progress {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .wb-progress-track {
+            height: 4px;
+            background: var(--card-bg);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 0.75rem;
+        }
+
+        .wb-progress-fill {
+            height: 100%;
+            background: var(--accent-blue);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        .wb-progress-steps {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .wb-progress-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.375rem;
+            flex: 1;
+            position: relative;
+        }
+
+        .wb-progress-step::before {
+            content: '';
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            right: 50%;
+            height: 2px;
+            background: var(--card-border);
+            z-index: 0;
+        }
+
+        .wb-progress-step:first-child::before {
+            left: 0;
+            right: 50%;
+        }
+
+        .wb-progress-step:last-child::before {
+            left: 50%;
+            right: 0;
+        }
+
+        .wb-progress-step.active::before {
+            background: var(--accent-blue);
+        }
+
+        .wb-progress-step.done::before {
+            background: var(--accent-green);
+        }
+
+        .wb-step-num {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--card-bg);
+            border: 2px solid var(--card-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            z-index: 1;
+            transition: all 0.2s ease;
+        }
+
+        .wb-progress-step.active .wb-step-num {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: var(--bg-color);
+        }
+
+        .wb-progress-step.done .wb-step-num {
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+            color: var(--bg-color);
+        }
+
+        .wb-step-label {
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-align: center;
+            transition: color 0.2s ease;
+        }
+
+        .wb-progress-step.active .wb-step-label {
+            color: var(--accent-blue);
+            font-weight: 600;
+        }
+
+        .wb-progress-step.done .wb-step-label {
+            color: var(--accent-green);
+        }
+
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* Main Layout */
+        .wb-main {
+            padding: 1.5rem;
+        }
+
+        .wb-grid {
+            display: grid;
+            grid-template-columns: 1fr 420px;
+            gap: 1.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 1100px) {
+            .wb-grid {
+                grid-template-columns: 1fr;
+            }
+            .wb-evidence-panel {
+                position: sticky;
+                bottom: 0;
+            }
+        }
+
+        /* Panels */
+        .wb-panel {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--border-radius);
+            display: flex;
+            flex-direction: column;
+            height: fit-content;
+        }
+
+        .wb-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .wb-panel-header h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin: 0;
+        }
+
+        .wb-confidence {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.375rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .confidence-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .wb-confidence.high .confidence-dot { background: var(--accent-green); }
+        .wb-confidence.medium .confidence-dot { background: var(--accent-amber); }
+        .wb-confidence.low .confidence-dot { background: var(--accent-red); }
+
+        .confidence-text {
+            text-transform: capitalize;
+        }
+
+        .wb-answer-content {
+            padding: 1.25rem;
+            flex: 1;
+        }
+
+        .wb-empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem 2rem;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .wb-empty-icon {
+            width: 48px;
+            height: 48px;
+            color: var(--card-border);
+            margin-bottom: 1rem;
+        }
+
+        .wb-empty-state h3 {
+            font-size: 1.125rem;
+            color: var(--text-main);
+            margin: 0 0 0.5rem;
+        }
+
+        .wb-empty-state p {
+            font-size: 0.875rem;
+            margin: 0;
+        }
+
+        .wb-prose {
+            line-height: 1.7;
+            color: var(--text-main);
+        }
+
+        .wb-prose p { margin-bottom: 0.75rem; }
+        .wb-prose strong { color: var(--text-main); }
+        .wb-prose code {
+            background: var(--surface);
+            padding: 0.125rem 0.375rem;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-family: monospace;
+        }
+
+        /* Evidence Section */
+        .wb-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .wb-section-header h3 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin: 0;
+        }
+
+        .wb-evidence-count, .wb-sql-count {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .wb-evidence-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .wb-evidence-item {
+            background: var(--surface);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 1rem;
+            transition: border-color 0.15s ease;
+        }
+
+        .wb-evidence-item:hover {
+            border-color: var(--accent-blue);
+        }
+
+        .wb-evidence-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .wb-evidence-id {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: var(--accent-blue);
+            background: rgba(56,189,248,0.1);
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .wb-evidence-claim {
+            font-size: 0.875rem;
+            color: var(--text-main);
+            line-height: 1.5;
+        }
+
+        .wb-evidence-numbers {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .wb-evidence-number {
+            font-family: monospace;
+            font-size: 0.75rem;
+            background: var(--card-bg);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            color: var(--accent-amber);
+        }
+
+        .wb-evidence-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            font-size: 0.75rem;
+            color: var(--accent-blue);
+            text-decoration: none;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            background: rgba(56,189,248,0.1);
+            transition: all 0.15s ease;
+        }
+
+        .wb-evidence-link:hover {
+            background: rgba(56,189,248,0.2);
+        }
+
+        /* Caveats */
+        .wb-caveats-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .wb-caveat-item {
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: var(--surface);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .wb-caveat-icon {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+            color: var(--accent-amber);
+            margin-top: 0.125rem;
+        }
+
+        /* Panel Footer */
+        .wb-panel-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--card-border);
+            margin-top: auto;
+        }
+
+        .wb-task-id {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: var(--accent-blue);
+        }
+
+        .wb-link-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.875rem;
+            background: transparent;
+            color: var(--accent-blue);
+            border: 1px solid var(--accent-blue);
+            border-radius: var(--border-radius);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .wb-link-btn:hover {
+            background: rgba(56,189,248,0.1);
+        }
+
+        /* Evidence Panel Tabs */
+        .wb-panel-tabs {
+            display: flex;
+            background: var(--surface);
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .wb-tab {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+
+        .wb-tab:hover {
+            color: var(--text-main);
+            background: var(--card-bg);
+        }
+
+        .wb-tab.active {
+            color: var(--accent-blue);
+            border-bottom-color: var(--accent-blue);
+            background: var(--card-bg);
+        }
+
+        .wb-tab:focus-visible {
+            outline: 2px solid var(--accent-blue);
+            outline-offset: -2px;
+        }
+
+        .wb-tab-panels {
+            padding: 1.25rem;
+        }
+
+        .wb-tab-panel {
+            animation: fadeIn 0.15s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Plan Grid */
+        .wb-plan-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 480px) {
+            .wb-plan-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .wb-plan-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .wb-field-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .wb-field-value {
+            font-size: 0.875rem;
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        .wb-field-value.wb-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.25rem 0.625rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+        }
+
+        .wb-field-value.wb-status.yes {
+            background: rgba(74,222,128,0.15);
+            color: var(--accent-green);
+        }
+
+        .wb-field-value.wb-status.no {
+            background: rgba(248,113,113,0.15);
+            color: var(--accent-red);
+        }
+
+        .wb-plan-section {
+            margin-top: 1.5rem;
+        }
+
+        .wb-plan-section h4 {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 0 0 0.75rem;
+        }
+
+        .wb-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.375rem;
+        }
+
+        .wb-list li {
+            padding: 0.5rem 0.75rem;
+            background: var(--surface);
+            border: 1px solid var(--card-border);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: var(--text-main);
+        }
+
+        .wb-list-empty {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .wb-gap {
+            padding: 0.75rem;
+            background: var(--surface);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* SQL Tab */
+        .wb-sql-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .wb-sql-header h3 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .wb-sql-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .wb-sql-card {
+            background: var(--surface);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .wb-sql-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--card-border);
+            cursor: pointer;
+        }
+
+        .wb-sql-card-header:hover {
+            background: rgba(56,189,248,0.05);
+        }
+
+        .wb-sql-id {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: var(--accent-blue);
+            background: rgba(56,189,248,0.1);
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .wb-sql-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .wb-sql-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .wb-sql-status.ok {
+            background: rgba(74,222,128,0.15);
+            color: var(--accent-green);
+        }
+
+        .wb-sql-status.error {
+            background: rgba(248,113,113,0.15);
+            color: var(--accent-red);
+        }
+
+        .wb-sql-toggle {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            transition: transform 0.2s ease;
+        }
+
+        .wb-sql-card.open .wb-sql-toggle {
+            transform: rotate(180deg);
+        }
+
+        .wb-sql-body {
+            padding: 1rem;
+            border-top: 1px solid var(--card-border);
+            display: none;
+        }
+
+        .wb-sql-card.open .wb-sql-body {
+            display: block;
+            animation: slideDown 0.2s ease;
+        }
+
+        .wb-sql-query {
+            font-family: monospace;
+            font-size: 0.8rem;
+            background: #0f172a;
+            border: 1px solid var(--card-border);
+            border-radius: 6px;
+            padding: 1rem;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            color: var(--text-main);
+            line-height: 1.6;
+        }
+
+        .wb-sql-result {
+            margin-top: 0.75rem;
+        }
+
+        .wb-sql-result-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .wb-sql-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+        }
+
+        .wb-sql-table th,
+        .wb-sql-table td {
+            padding: 0.5rem 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .wb-sql-table th {
+            color: var(--text-muted);
+            font-weight: 600;
+            background: var(--card-bg);
+        }
+
+        .wb-sql-table td {
+            color: var(--text-main);
+        }
+
+        .wb-sql-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Checks Tab */
+        .wb-checks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .wb-check-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.875rem 1rem;
+            background: var(--surface);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+        }
+
+        .wb-check-icon {
+            flex-shrink: 0;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .wb-check-icon.pending {
+            background: rgba(56,189,248,0.15);
+            color: var(--accent-blue);
+        }
+
+        .wb-check-icon.done {
+            background: rgba(74,222,128,0.15);
+            color: var(--accent-green);
+        }
+
+        .wb-check-icon.error {
+            background: rgba(248,113,113,0.15);
+            color: var(--accent-red);
+        }
+
+        .wb-check-content {
+            flex: 1;
+        }
+
+        .wb-check-question {
+            font-weight: 500;
+            color: var(--text-main);
+            margin: 0 0 0.25rem;
+        }
+
+        .wb-check-method {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Panel Footer */
+        .wb-panel-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .wb-task-id {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: var(--accent-blue);
+        }
+
+        .wb-link-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.875rem;
+            background: transparent;
+            color: var(--accent-blue);
+            border: 1px solid var(--accent-blue);
+            border-radius: var(--border-radius);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .wb-link-btn:hover {
+            background: rgba(56,189,248,0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar: unified across both views -->
+    <header class="navbar">
+        <div class="brand">AI Data Analyst</div>
+        <nav class="tabs">
+            <button class="nav-tab active" onclick="switchView('workbench')">📊 Workbench</button>
+            <button class="nav-tab" onclick="switchView('traces')">🔬 Traces</button>
+        </nav>
+        <div>
+            <span class="health-indicator" id="health-indicator"></span>
+            <span class="health-indicator" id="health-indicator2"></span>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+
+        <!-- ==================== WORKBENCH VIEW ==================== -->
+        <section id="view-workbench" class="view active">
+
+            <!-- Query Panel - Fixed at top -->
+            <header class="wb-header">
+                <div class="wb-header-content">
+                    <div class="wb-title-block">
+                        <h1>Analyst Workbench</h1>
+                        <p class="wb-subtitle">Investigate the business database with SQL evidence</p>
+                    </div>
+                    <div class="wb-actions">
+                        <div class="preset-chips" role="group" aria-label="Example questions">
+                            <button class="preset-chip" type="button" onclick="setPreset('revenue-drop')" aria-label="Revenue drop this month">Revenue drop this month</button>
+                            <button class="preset-chip" type="button" onclick="setPreset('top-returns')" aria-label="Highest return rate">Highest return rate</button>
+                            <button class="preset-chip" type="button" onclick="setPreset('region-fashion')" aria-label="Fashion returns by region">Fashion returns by region</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="wb-input-row">
+                    <label for="question-input" class="visually-hidden">Business question</label>
+                    <input type="text" id="question-input" class="wb-question-input" placeholder="e.g. Why did our revenue drop this month?" aria-label="Business question">
+                    <button id="ask-btn" class="wb-submit-btn" onclick="submitQuestion()" aria-label="Start investigation">
+                        <span class="btn-text">Investigate</span>
+                        <span class="btn-loader" aria-hidden="true"></span>
+                    </button>
+                </div>
+                
+                <!-- Pipeline Progress Bar -->
+                <div class="wb-progress" id="progress-steps" role="progressbar" aria-valuemin="0" aria-valuemax="3" aria-valuenow="1" aria-label="Investigation progress">
+                    <div class="wb-progress-track">
+                        <div class="wb-progress-fill" id="progress-fill" style="width: 33.33%;"></div>
+                    </div>
+                    <div class="wb-progress-steps" role="list">
+                        <div class="wb-progress-step active" id="step-plan" role="listitem" aria-current="step">
+                            <span class="wb-step-num">1</span>
+                            <span class="wb-step-label">Plan</span>
+                        </div>
+                        <div class="wb-progress-step" id="step-investigate" role="listitem">
+                            <span class="wb-step-num">2</span>
+                            <span class="wb-step-label">Execute</span>
+                        </div>
+                        <div class="wb-progress-step" id="step-answer" role="listitem">
+                            <span class="wb-step-num">3</span>
+                            <span class="wb-step-label">Answer</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Results Area - Scrollable -->
+            <main class="wb-main" id="results-area" style="display:none; flex:1; overflow-y:auto;">
+                <div class="wb-grid">
+                    
+                    <!-- Left Column: Answer & Evidence -->
+                    <aside class="wb-panel wb-answer-panel">
+                        <header class="wb-panel-header">
+                            <h2>Executive Summary</h2>
+                            <div class="wb-confidence" id="confidence-badge">
+                                <span class="confidence-dot" id="confidence-dot"></span>
+                                <span class="confidence-text" id="confidence-text">Not started</span>
+                            </div>
+                        </header>
+                        
+                        <article class="wb-answer-content" id="answer-content">
+                            <div class="wb-empty-state" id="empty-state">
+                                <svg class="wb-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                </svg>
+                                <h3>Ready to investigate</h3>
+                                <p>Enter a business question above to start an investigation.</p>
+                            </div>
+                            
+                            <div class="wb-answer-body" id="answer-body" style="display:none;">
+                                <div class="wb-prose" id="answer-prose"></div>
+                                
+                                <section class="wb-evidence-section" id="evidence-section" aria-label="Supporting evidence">
+                                    <header class="wb-section-header">
+                                        <h3>Supporting Evidence</h3>
+                                        <span class="wb-evidence-count" id="evidence-count">0 findings</span>
+                                    </header>
+                                    <div class="wb-evidence-list" id="evidence-list"></div>
+                                </section>
+                                
+                                <section class="wb-caveats-section" id="caveats-section" style="display:none;" aria-label="Limitations and assumptions">
+                                    <header class="wb-section-header">
+                                        <h3>Limitations & Assumptions</h3>
+                                    </header>
+                                    <div class="wb-caveats-list" id="caveats-list"></div>
+                                </section>
+                            </div>
+                        </article>
+                        
+                        <footer class="wb-panel-footer">
+                            <span class="wb-task-id" id="task-id">No active task</span>
+                            <button class="wb-link-btn" id="inspect-trace-btn" onclick="switchToTraces();" style="display:none;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                </svg>
+                                View Full Trace
+                            </button>
+                        </footer>
+                    </aside>
+
+                    <!-- Right Column: Plan & SQL Evidence -->
+                    <aside class="wb-panel wb-evidence-panel">
+                        <!-- Tab Navigation -->
+                        <nav class="wb-panel-tabs" role="tablist" aria-label="Investigation details">
+                            <button class="wb-tab active" role="tab" aria-selected="true" aria-controls="tab-plan" onclick="switchWorkbenchTab('plan')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 11l3 3L22 4"/>
+                                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                                </svg>
+                                Plan
+                            </button>
+                            <button class="wb-tab" role="tab" aria-selected="false" aria-controls="tab-sql" onclick="switchWorkbenchTab('sql')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                                    <polyline points="14 2 14 8 20 8"/>
+                                    <line x1="16" y1="13" x2="8" y2="13"/>
+                                    <line x1="16" y1="17" x2="8" y2="17"/>
+                                    <line x1="10" y1="9" x2="8" y2="9"/>
+                                </svg>
+                                SQL Queries
+                            </button>
+                            <button class="wb-tab" role="tab" aria-selected="false" aria-controls="tab-plan-checks" onclick="switchWorkbenchTab('checks')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="9 11 12 14 22 4"/>
+                                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                                </svg>
+                                Checks
+                            </button>
+                        </nav>
+
+                        <!-- Tab Panels -->
+                        <div class="wb-tab-panels">
+                            <!-- Plan Tab -->
+                            <section class="wb-tab-panel active" id="tab-plan" role="tabpanel" aria-labelledby="tab-plan">
+                                <div class="wb-plan-grid">
+                                    <div class="wb-plan-field">
+                                        <label class="wb-field-label">Metric Definition</label>
+                                        <div class="wb-field-value" id="plan-metric">—</div>
+                                    </div>
+                                    <div class="wb-plan-field">
+                                        <label class="wb-field-label">Timeframe</label>
+                                        <div class="wb-field-value" id="plan-timeframe">—</div>
+                                    </div>
+                                    <div class="wb-plan-field">
+                                        <label class="wb-field-label">Granularity</label>
+                                        <div class="wb-field-value" id="plan-granularity">—</div>
+                                    </div>
+                                    <div class="wb-plan-field">
+                                        <label class="wb-field-label">Metric Type</label>
+                                        <div class="wb-field-value" id="plan-metric-type">—</div>
+                                    </div>
+                                    <div class="wb-plan-field">
+                                        <label class="wb-field-label">Answerable</label>
+                                        <div class="wb-field-value wb-status" id="plan-answerable">—</div>
+                                    </div>
+                                    <div class="wb-plan-field">
+                                        <label class="wb-field-label">Planned Checks</label>
+                                        <div class="wb-field-value" id="plan-checks">—</div>
+                                    </div>
+                                </div>
+
+                                <div class="wb-plan-section">
+                                    <h4>Assumptions</h4>
+                                    <ul class="wb-list" id="plan-assumptions-list">
+                                        <li class="wb-list-empty">No assumptions recorded</li>
+                                    </ul>
+                                </div>
+
+                                <div class="wb-plan-section">
+                                    <h4>Blocking Gaps</h4>
+                                    <div class="wb-gap" id="plan-blocking-gap-text">No blocking gaps identified</div>
+                                </div>
+                            </section>
+
+                            <!-- SQL Queries Tab -->
+                            <section class="wb-tab-panel" id="tab-sql" role="tabpanel" aria-labelledby="tab-sql" style="display:none;">
+                                <div class="wb-sql-header">
+                                    <h3>Executed Queries</h3>
+                                    <span class="wb-sql-count" id="sql-count">0 queries</span>
+                                </div>
+                                <div class="wb-sql-list" id="sql-list">
+                                    <div class="wb-empty-state">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                                            <polyline points="14 2 14 8 20 8"/>
+                                        </svg>
+                                        <p>No queries executed yet</p>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <!-- Checks Tab -->
+                            <section class="wb-tab-panel" id="tab-plan-checks" role="tabpanel" aria-labelledby="tab-plan-checks" style="display:none;">
+                                <div class="wb-checks-list" id="plan-checks-list">
+                                    <div class="wb-empty-state">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                            <polyline points="9 11 12 14 22 4"/>
+                                        </svg>
+                                        <p>No checks planned</p>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </aside>
+                </div>
+            </main>
+        </section>
+
+        <!-- ==================== TRACES VIEW ==================== -->
+        <section id="view-traces" class="view">
+
+            <!-- Sidebar: Trace List -->
+            <aside class="sidebar" style="width:320px; flex-shrink:0; border-right:1px solid var(--card-border); background:var(--surface); overflow-y:auto; height:100%;">
+                <div style="padding:1rem; position:sticky; top:0; background:var(--surface); z-index:10; border-bottom:1px solid var(--card-border);">
+                    <h3 style="margin-bottom:0.5rem;">Execution Traces</h3>
+                    <input type="text" id="trace-search" placeholder="Filter task ID..." oninput="filterTraces()" style="width:100%;padding:0.5rem;margin:0.5rem 0;border:1px solid var(--card-border);border-radius:6px;background:var(--card-bg);color:var(--text-main);outline:none;">
+                </div>
+                <div id="trace-list" style="padding:0.5rem;">Loading traces…</div>
+            </aside>
+
+            <!-- Main: Trace Detail -->
+            <main class="main-pane" style="flex:1; padding:1.5rem; overflow-y:auto; min-width:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                    <h3 id="trace-title">Select a trace</h3>
+                    <button onclick="refreshTraceList()" style="padding:0.4rem 0.8rem;background:var(--accent-blue);color:#0f172a;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">Refresh</button>
+                </div>
+                <div id="trace-details" style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:8px;padding:1rem;min-height:400px;">
+                    <p style="color:var(--text-muted);">Select a trace from the sidebar to view execution metrics.</p>
+                </div>
+            </main>
+
+        </section>
+
+    </main>
+
+    <script>
+        // ---------- State ----------
+        let allTraces = [];
+        let currentTaskId = null;
+        let currentView = 'workbench';
+
+        // ---------- UI Helpers ----------
+        function $(sel) { return document.querySelector(sel); }
+        function ce(tag, cls) { const e = document.createElement(tag); if(cls) e.className = cls; return e; }
+
+        function escapeHtml(str) { return String(str).replace(/&/g,"&").replace(/</g,"<").replace(/>/g,">").replace(/"/g,"\""); }
+
+        // ---------- Trace Detail Toggles ----------
+        function toggleStepCard(idx) {
+            const card = document.querySelector(`.step-card[data-step="${idx}"]`);
+            const body = document.getElementById(`step-body-${idx}`);
+            if (card && body) {
+                const isCollapsed = body.style.display === 'none' || card.classList.contains('step-collapsed');
+                card.classList.toggle('step-collapsed', !isCollapsed);
+                body.style.display = isCollapsed ? 'block' : 'none';
+            }
+        }
+
+        function toggleRawJson(id) {
+            const pre = document.getElementById(id);
+            const toggle = pre ? pre.previousElementSibling : null;
+            if (pre && toggle) {
+                const isVisible = pre.classList.contains('visible');
+                pre.classList.toggle('visible', !isVisible);
+                toggle.classList.toggle('active', !isVisible);
+            }
+        }
+
+        // ---------- Preset Questions ----------
+        function setPreset(id) {
+            const map = {
+                'revenue-drop': 'Why did our revenue drop this month?',
+                'top-returns': 'Which product category has the highest return rate?',
+                'region-fashion': 'What is the monthly order breakdown by region?',
+            };
+            const q = map[id] || '';
+            $('#question-input').value = q;
+        }
+
+        // ---------- View Switching ----------
+        function switchView(view) {
+            currentView = view;
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.textContent.includes(view)));
+            document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
+            if (view === 'traces') { loadTraceList(); }
+            // Reset workbench state when switching away
+            if (view === 'workbench') { resetWorkbench(); }
+        }
+
+        // ---------- Reset Workbench ----------
+        function resetWorkbench() {
+            // Hide results, show empty state
+            $('#results-area').style.display = 'none';
+            $('#empty-state').style.display = 'flex';
+            $('#answer-body').style.display = 'none';
+            
+            // Reset progress
+            setProgress(0, 'active');
+            
+            // Reset button
+            const btn = $('#ask-btn');
+            btn.disabled = false;
+            btn.classList.remove('loading');
+            
+            // Reset task ID
+            $('#task-id').textContent = 'No active task';
+            $('#inspect-trace-btn').style.display = 'none';
+            
+            // Reset workbench tabs to Plan
+            switchWorkbenchTab('plan');
+        }
+
+        // ---------- Workbench Tab Switching ----------
+        function switchWorkbenchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.wb-tab').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('aria-controls') === `tab-${tabName}`);
+                btn.setAttribute('aria-selected', btn.getAttribute('aria-controls') === `tab-${tabName}`);
+            });
+            
+            // Update panels
+            document.querySelectorAll('.wb-tab-panel').forEach(panel => {
+                panel.style.display = panel.id === `tab-${tabName}` ? 'block' : 'none';
+            });
+        }
+
+        function switchToTraces() {
+            switchView('traces');
+            if (currentTaskId) selectTrace(currentTaskId);
+        }
+
+        function scrollToSql(queryId) {
+            const card = document.getElementById(`sql-card-${queryId}`);
+            if (card) {
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Open the card
+                if (!card.classList.contains('open')) {
+                    toggleSqlCard(queryId);
+                }
+            }
+        }
+
+        function toggleSqlCard(queryId) {
+            const card = document.getElementById(`sql-card-${queryId}`);
+            if (card) {
+                card.classList.toggle('open');
+            }
+        }
+
+        // ---------- Load Trace List ----------
+
+        // ---------- Load Trace List ----------
+        async function loadTraceList() {
+            try {
+                console.log('[Traces] Loading trace list...');
+                const res = await fetch('/traces');
+                allTraces = await res.json();
+                console.log('[Traces] Loaded', allTraces.length, 'traces');
+                renderTraceList(allTraces);
+            } catch(e) { 
+                console.error('[Traces] Failed to load traces:', e);
+                $('#trace-list').innerHTML = '<div style="color:var(--accent-red); padding:10px;">Failed to load traces</div>'; 
+            }
+        }
+
+        function renderTraceList(traces) {
+            const container = $('#trace-list');
+            if (!traces.length) { container.innerHTML = '<div style="color:var(--text-muted); padding:10px;">No traces found</div>'; return; }
+            container.innerHTML = traces.map(t => {
+                const date = new Date(t.created_at * 1000).toLocaleString();
+                return `<div class="trace-card" style="padding:8px;border-radius:6;margin:4px 0;background:var(--card-bg);border:1px solid var(--card-border);cursor:pointer;transition:background 0.15s;" onclick="selectTrace('${t.task_id}', event)">
+                    <div style="font-weight:600;color:var(--text-main);">${t.task_id}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);">${date}</div>
+                </div>`;
+            }).join('');
+        }
+
+        // ---------- Filter Traces ----------
+        function filterTraces() {
+            const query = $('#trace-search').value.toLowerCase();
+            const filtered = allTraces.filter(t => t.task_id.toLowerCase().includes(query));
+            renderTraceList(filtered);
+        }
+
+        // ---------- Select Trace -->
+        async function selectTrace(taskId, evt) {
+            console.log('[Traces] selectTrace called with:', taskId);
+            currentTaskId = taskId;
+            document.querySelectorAll('.trace-card').forEach(c => c.style.background = 'var(--card-bg)');
+            if (evt && evt.currentTarget) evt.currentTarget.style.background = 'rgba(56,189,248,0.15)';
+            $('#trace-title').textContent = taskId;
+            $('#trace-details').innerHTML = '<p style="color:var(--text-muted);">Loading details...</p>';
+            try {
+                console.log('[Traces] Fetching /traces/' + taskId);
+                const res = await fetch(`/traces/${taskId}`);
+                console.log('[Traces] Response status:', res.status);
+                if (!res.ok) throw new Error('Trace not found: ' + res.status);
+                const steps = await res.json();
+                console.log('[Traces] Steps received:', steps.length);
+                renderTraceDetails(steps);
+            } catch(e) { 
+                console.error('[Traces] Error:', e);
+                $('#trace-details').innerHTML = '<div style="color:var(--accent-red); padding:10px;">Error loading trace: ' + escapeHtml(e.message) + '</div>'; 
+            }
+        }
+
+        function renderTraceDetails(steps) {
+            console.log('[Traces] renderTraceDetails called with', steps.length, 'steps');
+            if (!steps || steps.length === 0) { 
+                console.log('[Traces] No steps to render');
+                $('#trace-details').innerHTML = '<p style="color:var(--text-muted);">No steps found.</p>'; 
+                return; 
+            }
+
+            let totalTokensIn = 0, totalTokensOut = 0, totalMs = 0, hasError = false;
+            steps.forEach(s => { totalTokensIn += s.tokens_in||0; totalTokensOut += s.tokens_out||0; totalMs += s.duration_ms||0; if(s.outcome==='error'||s.error) hasError=true; });
+
+            // Build step cards
+            let stepCardsHtml = '';
+            steps.forEach((step, idx) => {
+                const isError = step.outcome === 'error' || step.error;
+                const statusBadge = isError 
+                    ? '<span class="badge badge-error">Error</span>' 
+                    : '<span class="badge badge-ok">Success</span>';
+                const statusClass = isError ? 'step-error' : 'step-success';
+                
+                const toolCallsHtml = (step.tool_calls && step.tool_calls.length > 0)
+                    ? `<div class="step-tool-calls">
+                         <span class="step-detail-label">Tools:</span>
+                         ${step.tool_calls.map(tc => `<span class="tool-chip">${escapeHtml(tc)}</span>`).join('')}
+                       </div>`
+                    : '';
+
+                const errorHtml = step.error
+                    ? `<div class="step-error-detail">${escapeHtml(step.error)}</div>`
+                    : '';
+
+                const durationSec = ((step.duration_ms || 0) / 1000).toFixed(2);
+                const startedAt = step.started_at ? new Date(step.started_at).toLocaleString() : 'N/A';
+                
+                // Toggle ID for collapsible raw JSON
+                const rawId = `raw-step-${idx}`;
+
+                stepCardsHtml += `
+                    <div class="step-card ${statusClass}" data-step="${idx}">
+                        <div class="step-card-header" onclick="toggleStepCard(${idx})">
+                            <div class="step-card-title">
+                                <span class="step-number">Step ${idx + 1}</span>
+                                <span class="step-agent">${escapeHtml(step.agent || 'Unknown')}</span>
+                                <span class="step-id">${escapeHtml(step.step_id || 'Unknown')}</span>
+                            </div>
+                            <div class="step-card-meta">
+                                ${statusBadge}
+                                <span class="step-duration">${durationSec}s</span>
+                                <span class="step-toggle" id="toggle-${idx}">▼</span>
+                            </div>
+                        </div>
+                        <div class="step-card-body" id="step-body-${idx}">
+                            <div class="step-details-grid">
+                                <div class="step-detail-item">
+                                    <span class="step-detail-label">Model</span>
+                                    <span class="step-detail-value">${escapeHtml(step.model || 'N/A')}</span>
+                                </div>
+                                <div class="step-detail-item">
+                                    <span class="step-detail-label">Started</span>
+                                    <span class="step-detail-value">${startedAt}</span>
+                                </div>
+                                <div class="step-detail-item">
+                                    <span class="step-detail-label">Tokens In/Out</span>
+                                    <span class="step-detail-value">${(step.tokens_in||0).toLocaleString()} / ${(step.tokens_out||0).toLocaleString()}</span>
+                                </div>
+                                <div class="step-detail-item">
+                                    <span class="step-detail-label">Prompt Hash</span>
+                                    <span class="step-detail-value step-hash">${escapeHtml(step.prompt_hash || 'N/A')}</span>
+                                </div>
+                            </div>
+                            ${toolCallsHtml}
+                            ${errorHtml}
+                            <div class="step-raw-toggle" onclick="event.stopPropagation(); toggleRawJson('${rawId}')">
+                                <span>Show raw JSON</span>
+                                <span class="raw-toggle-icon">▼</span>
+                            </div>
+                            <pre class="step-raw-json" id="${rawId}">${escapeHtml(JSON.stringify(step, null, 2))}</pre>
+                        </div>
+                    </div>
+                `;
+            });
+
+            $('#trace-details').innerHTML = `
+                <div class="trace-summary-bar">
+                    <div class="summary-stat">
+                        <span class="summary-label">Total Duration</span>
+                        <span class="summary-value" style="color: var(--accent-blue);">${(totalMs/1000).toFixed(2)}s</span>
+                    </div>
+                    <div class="summary-stat">
+                        <span class="summary-label">Prompt Tokens</span>
+                        <span class="summary-value">${totalTokensIn.toLocaleString()}</span>
+                    </div>
+                    <div class="summary-stat">
+                        <span class="summary-label">Completion Tokens</span>
+                        <span class="summary-value">${totalTokensOut.toLocaleString()}</span>
+                    </div>
+                    <div class="summary-stat">
+                        <span class="summary-label">Total Steps</span>
+                        <span class="summary-value">${steps.length}</span>
+                    </div>
+                    <div class="summary-stat ${hasError ? 'summary-error' : 'summary-ok'}">
+                        <span class="summary-label">Status</span>
+                        <span class="summary-value">${hasError ? 'Completed with Errors' : 'Completed Successfully'}</span>
+                    </div>
+                </div>
+                <div class="trace-steps-container">
+                    ${stepCardsHtml}
+                </div>
+            `;
+            console.log('[Traces] Details rendered to DOM');
+        }
+
+        async function refreshTraceList() { loadTraceList(); }
+
+        // ---------- Progress Step Update ----------
+        function setProgress(stepIdx, status) {
+            const stepItems = document.querySelectorAll('.step-item');
+            stepItems.forEach(s => s.classList.remove('active','running','done'));
+            if (stepIdx >= 0 && stepIdx < stepItems.length) stepItems[stepIdx].classList.add(status || 'active');
+            // Mark earlier as done
+            for (let i=0; i<Math.min(stepIdx, stepItems.length); i++) stepItems[i].classList.add('done');
+        }
+
+        // ---------- Submit Question to /answer ----------
+        async function submitQuestion() {
+            const q = $('#question-input').value.trim();
+            if (!q) { alert('Enter a question'); return; }
+            
+            const btn = $('#ask-btn');
+            btn.disabled = true;
+            btn.classList.add('loading');
+            
+            // Show results area
+            $('#results-area').style.display = 'flex';
+            $('#empty-state').style.display = 'flex';
+            $('#answer-body').style.display = 'none';
+            
+            // Reset progress to step 1 (Plan)
+            setProgress(0, 'active');
+
+            try {
+                const res = await fetch('/answer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: q })
+                });
+                if (!res.ok) {
+                    const txt = await res.text(); alert('Error: ' + txt); resetWorkbench(); return;
+                }
+                const data = await res.json(); // AnswerResponse shape
+
+                // Simulate progress
+                setProgress(1, 'running'); // Step 1: Execute
+                setTimeout(() => {
+                    setProgress(1, 'done');
+                    setProgress(2, 'running');
+                    setTimeout(() => {
+                        setProgress(2, 'done');
+                        renderAnswer(data);
+                        btn.disabled = false;
+                        btn.classList.remove('loading');
+                    }, 1500);
+                }, 2500);
+            } catch(e) { 
+                alert('Network error: ' + e); 
+                resetWorkbench(); 
+            }
+        }
+
+        // ---------- Progress Update ----------
+        function setProgress(stepIdx, status) {
+            // Update progress fill
+            const fill = $('#progress-fill');
+            const pct = ((stepIdx + 1) / 3) * 100;
+            if (fill) fill.style.width = pct + '%';
+            
+            // Update step indicators
+            const steps = document.querySelectorAll('.wb-progress-step');
+            steps.forEach((s, i) => {
+                s.classList.remove('active', 'running', 'done');
+                const num = s.querySelector('.wb-step-num');
+                if (i < stepIdx) {
+                    s.classList.add('done');
+                    if (num) { num.textContent = '✓'; num.style.fontSize = '0.65rem'; }
+                } else if (i === stepIdx) {
+                    if (status === 'running' || status === 'active') s.classList.add('active');
+                    else if (status === 'done') s.classList.add('done');
+                }
+            });
+            
+            // Update progress bar role
+            const progressBar = $('#progress-steps');
+            if (progressBar) progressBar.setAttribute('aria-valuenow', stepIdx + 1);
+        }
+
+        // ---------- Render Answer Data (New UI) ----------
+        function renderAnswer(resp) {
+            const { task_id, question, plan, investigation, answer } = resp;
+            
+            // Hide empty state, show answer body
+            $('#empty-state').style.display = 'none';
+            $('#answer-body').style.display = 'block';
+            
+            // Task ID
+            $('#task-id').textContent = task_id || '—';
+            
+            // Confidence
+            const conf = answer.confidence || 'medium';
+            const confBadge = $('#confidence-badge');
+            const confDot = $('#confidence-dot');
+            const confText = $('#confidence-text');
+            confBadge.className = `wb-confidence ${conf}`;
+            confDot.className = 'confidence-dot';
+            confText.textContent = conf.charAt(0).toUpperCase() + conf.slice(1);
+            
+            // Answer prose
+            $('#answer-prose').innerHTML = answer ? answer.answer : 'No answer';
+            
+            // Evidence
+            renderEvidence(answer, investigation);
+            
+            // Caveats (assumptions + limitations)
+            renderCaveats(answer);
+            
+            // Plan tab
+            renderPlanTab(plan);
+            
+            // SQL tab
+            renderSqlTab(investigation);
+            
+            // Checks tab
+            renderChecksTab(plan);
+            
+            // Show Inspect Trace button
+            $('#inspect-trace-btn').style.display = 'inline-flex';
+            $('#inspect-trace-btn').onclick = () => { switchView('traces'); selectTrace(task_id); };
+        }
+
+        function renderEvidence(answer, investigation) {
+            const list = $('#evidence-list');
+            const countEl = $('#evidence-count');
+            
+            if (!answer || !answer.findings || !answer.findings.length) {
+                list.innerHTML = '<p class="wb-empty-state" style="padding:1rem;">No findings cited</p>';
+                countEl.textContent = '0 findings';
+                return;
+            }
+            
+            // Build query lookup from investigation
+            const queryMap = {};
+            if (investigation && investigation.queries) {
+                investigation.queries.forEach(q => {
+                    queryMap[q.id] = q;
+                });
+            }
+            
+            countEl.textContent = `${answer.findings.length} finding${answer.findings.length !== 1 ? 's' : ''}`;
+            
+            let html = '';
+            answer.findings.forEach(f => {
+                const qids = f.evidence_query_ids || [];
+                let qidHtml = qids.map(qid => {
+                    const q = queryMap[qid];
+                    if (q) {
+                        return `<a class="wb-evidence-link" href="#" onclick="event.preventDefault(); switchWorkbenchTab('sql'); scrollToSql('${qid}')">${qid}</a>`;
+                    }
+                    return `<span class="wb-evidence-id">${qid}</span>`;
+                }).join(' ');
+                
+                let numbersHtml = '';
+                if (f.numbers && Object.keys(f.numbers).length) {
+                    numbersHtml = Object.entries(f.numbers).map(([k, v]) => 
+                        `<span class="wb-evidence-number">${k}: ${v}</span>`
+                    ).join('');
+                }
+                
+                html += `
+                    <div class="wb-evidence-item">
+                        <div class="wb-evidence-header">
+                            <span class="wb-evidence-id">${f.id}</span>
+                        </div>
+                        <p class="wb-evidence-claim">${escapeHtml(f.claim)}</p>
+                        ${numbersHtml ? `<div class="wb-evidence-numbers">${numbersHtml}</div>` : ''}
+                        <div class="wb-evidence-header" style="margin-top:0.5rem;">
+                            <span>Sources:</span>
+                            <span>${qidHtml}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            list.innerHTML = html;
+            $('#evidence-count').textContent = `${answer.findings.length} finding${answer.findings.length !== 1 ? 's' : ''}`;
+            $('#evidence-section').style.display = 'block';
+        }
+
+        function renderCaveats(answer) {
+            const section = $('#caveats-section');
+            const list = $('#caveats-list');
+            
+            const assumptions = answer.assumptions || [];
+            const limitations = answer.limitations || [];
+            
+            if (!assumptions.length && !limitations.length) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            section.style.display = 'block';
+            let html = '';
+            
+            assumptions.forEach(a => {
+                html += `<div class="wb-caveat-item"><svg class="wb-caveat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>${escapeHtml(a)}</span></div>`;
+            });
+            limitations.forEach(l => {
+                html += `<div class="wb-caveat-item"><svg class="wb-caveat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>${escapeHtml(l)}</span></div>`;
+            });
+            
+            list.innerHTML = html;
+        }
+
+        function renderPlanTab(plan) {
+            if (!plan) {
+                $('#plan-metric').textContent = '—';
+                $('#plan-timeframe').textContent = '—';
+                $('#plan-granularity').textContent = '—';
+                $('#plan-metric-type').textContent = '—';
+                $('#plan-answerable').textContent = '—';
+                $('#plan-answerable').className = 'wb-field-value wb-status';
+                $('#plan-checks').textContent = '—';
+                $('#plan-assumptions-list').innerHTML = '<li class="wb-list-empty">No assumptions recorded</li>';
+                $('#plan-blocking-gap-text').textContent = 'No blocking gaps identified';
+                return;
+            }
+            
+            const p = plan;
+            $('#plan-metric').textContent = p.metric_definition || '—';
+            
+            const tf = p.timeframe || {};
+            $('#plan-timeframe').textContent = tf.start && tf.end 
+                ? `${tf.start} to ${tf.end} (${tf.comparison || 'vs previous period'})`
+                : '—';
+            $('#plan-granularity').textContent = tf.granularity || '—';
+            $('#plan-metric-type').textContent = p.metric_type || '—';
+            
+            const ans = p.answerable ? 'yes' : 'no';
+            $('#plan-answerable').textContent = ans.charAt(0).toUpperCase() + ans.slice(1);
+            $('#plan-answerable').className = `wb-field-value wb-status ${ans === 'yes' ? 'yes' : 'no'}`;
+            
+            $('#plan-checks').textContent = p.checks ? p.checks.length : 0;
+            
+            // Assumptions
+            const assList = $('#plan-assumptions-list');
+            if (p.assumptions && p.assumptions.length) {
+                assList.innerHTML = p.assumptions.map(a => `<li>${escapeHtml(a)}</li>`).join('');
+            } else {
+                assList.innerHTML = '<li class="wb-list-empty">No assumptions recorded</li>';
+            }
+            
+            // Blocking gap
+            $('#plan-blocking-gap-text').textContent = p.blocking_gap || 'No blocking gaps identified';
+        }
+
+        function renderSqlTab(investigation) {
+            const list = $('#sql-list');
+            const count = $('#sql-count');
+            
+            if (!investigation || !investigation.queries || !investigation.queries.length) {
+                list.innerHTML = `
+                    <div class="wb-empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;">
+                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                        <p>No queries executed yet</p>
+                    </div>
+                `;
+                count.textContent = '0 queries';
+                return;
+            }
+            
+            count.textContent = `${investigation.queries.length} query${investigation.queries.length !== 1 ? 's' : ''}`;
+            
+            let html = '';
+            investigation.queries.forEach((q, idx) => {
+                const isError = q.status === 'error';
+                const statusClass = isError ? 'error' : 'ok';
+                const statusText = isError ? 'Error' : 'Success';
+                
+                // Build result table if data exists
+                let resultHtml = '';
+                if (q.preview) {
+                    const lines = q.preview.trim().split('\n');
+                    if (lines.length > 1) {
+                        const headers = lines[0].split(' | ').map(h => h.trim());
+                        const rows = lines.slice(1).map(l => l.split(' | ').map(c => c.trim()));
+                        
+                        resultHtml = `
+                            <div class="wb-sql-result">
+                                <div class="wb-sql-result-label">Results (${rows.length} row${rows.length !== 1 ? 's' : ''})</div>
+                                <table class="wb-sql-table">
+                                    <thead><tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+                                    <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+                                </table>
+                            </div>
+                        `;
+                    }
+                }
+                
+                html += `
+                    <div class="wb-sql-card" id="sql-card-${q.id}">
+                        <div class="wb-sql-card-header" onclick="toggleSqlCard('${q.id}')">
+                            <span class="wb-sql-id">${q.id}</span>
+                            <div class="wb-sql-meta">
+                                <span class="wb-sql-status ${isError ? 'error' : 'ok'}">${isError ? 'Error' : 'Success'}</span>
+                                <span>${q.duration_ms || 0}ms</span>
+                                <span class="wb-sql-toggle">▼</span>
+                            </div>
+                        </div>
+                        <div class="wb-sql-body">
+                            <pre class="wb-sql-query">${escapeHtml(q.sql)}</pre>
+                            ${resultHtml}
+                            ${q.error_message ? `<div class="wb-sql-error" style="color:var(--accent-red);margin-top:0.5rem;font-family:monospace;font-size:0.75rem;">${escapeHtml(q.error_message)}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            list.innerHTML = html;
+        }
+
+        function renderChecksTab(plan) {
+            const list = $('#plan-checks-list');
+            
+            if (!plan || !plan.checks || !plan.checks.length) {
+                list.innerHTML = `
+                    <div class="wb-empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;">
+                            <polyline points="9 11 12 14 22 4"/>
+                        </svg>
+                        <p>No checks planned</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            plan.checks.forEach((c, idx) => {
+                html += `
+                    <div class="wb-check-item">
+                        <div class="wb-check-icon pending">${idx + 1}</div>
+                        <div class="wb-check-content">
+                            <p class="wb-check-question">${escapeHtml(c.question)}</p>
+                            <p class="wb-check-method">${escapeHtml(c.method)}</p>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            list.innerHTML = html;
+        }
+
+        function renderPlanCard(planData) {
+            if (!planData) { $('#plan-card').innerHTML = '<h3>Investigation Plan</h3><p style="color:var(--text-muted);">No plan loaded.</p>'; return; }
+
+            const p = planData; // dict from to_dict(InvestigationPlan)
+            const metric = p.metric_definition || '—';
+            const timeframe = `${p.timeframe.start} – ${p.timeframe.end} (${p.timeframe.comparison})`;
+            const granularity = p.timeframe.granularity || '—';
+            const metricType = p.metric_type || '—';
+            const answerable = p.answerable ? 'Yes' : 'No';
+            const checks = p.checks ? p.checks.length : 0;
+            const assumptions = p.assumptions ? p.assumptions.join(', ') : '—';
+            const blockingGap = p.blocking_gap || '—';
+
+            $('#plan-metric').textContent = metric;
+            $('#plan-timeframe').textContent = timeframe;
+            $('#plan-granularity').textContent = granularity;
+            $('#plan-metric-type').textContent = metricType;
+            $('#plan-answerable').textContent = answerable;
+            $('#plan-checks').textContent = checks;
+            $('#plan-assumptions').textContent = assumptions;
+            $('#plan-blocking-gap').textContent = blockingGap;
+
+            // Render checks list
+            const checksList = $('#plan-checks-list');
+            if (p.checks && p.checks.length) {
+                checksList.innerHTML = p.checks.map(c => `<span class="check" title="${c.method || ''}">${c.id || 'check'}</span>`).join(' ');
+            } else {
+                checksList.innerHTML = '<span style="color:var(--text-muted);">—</span>';
+            }
+
+            // assumptions list
+            const assList = $('#plan-assumptions-list');
+            if (p.assumptions && p.assumptions.length) {
+                assList.innerHTML = p.assumptions.map(a => `<div style="margin-bottom:0.3rem;">${a}</div>`).join('');
+            } else {
+                assList.innerHTML = '<span style="color:var(--text-muted);">—</span>';
+            }
+
+            // blocking gap
+            $('#plan-blocking-gap-text').textContent = blockingGap || '—';
+        }
+
+        // ---------- SQL Query Scroll Highlight ----------
+        function scrollToQuery(qid) {
+            // Evidence chips don't have IDs, just highlight the active one
+            const chips = document.querySelectorAll('.evidence-chip');
+            chips.forEach(c => c.style.background = 'rgba(251,191,36,0.15)');
+            const active = Array.from(chips).find(c => c.textContent.includes(qid));
+            if (active) {
+                active.style.background = 'rgba(251,191,36,0.3)';
+                setTimeout(() => active.style.background = 'rgba(251,191,36,0.15)', 1500);
+            }
+        }
+
+        // ---------- On page load ----------
+        document.addEventListener('DOMContentLoaded', () => {
+            // init health indicators pulse (just decorative)
+            setInterval(() => { const ind = document.getElementById('health-indicator'); ind.style.background = ind.style.background === 'var(--accent-red)' ? '#fbbf24' : 'var(--accent-red)'; }, 500);
+            // init trace list
+            loadTraceList();
+            // init progress steps (first step: Plan)
+            const firstStep = document.getElementById('step-plan');
+            if (firstStep) firstStep.classList.add('active');
+        });
+    </script>
+
+</body>
+</html>

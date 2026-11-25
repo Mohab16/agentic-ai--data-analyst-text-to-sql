@@ -13,6 +13,8 @@ import asyncio
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 # Load .env automatically for the FastAPI process (same as the CLI)
@@ -21,6 +23,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import wire
+import app.trace_utils as trace_utils
 from core.config import Settings
 from core.types import ConfigError, PlanInvalid, to_dict
 
@@ -29,6 +32,18 @@ app = FastAPI(
     description="Agentic text-to-SQL analyst: the LLM investigates a database through validated SQL.",
     version="0.1.0",
 )
+
+# Mount the static files directory for the viewer
+# Assuming a 'ui' directory exists or we will create it
+import os
+ui_dir = os.path.join(os.path.dirname(__file__), "ui")
+os.makedirs(ui_dir, exist_ok=True)
+app.mount("/ui", StaticFiles(directory=ui_dir, html=True), name="ui")
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/ui/")
 
 
 class QuestionRequest(BaseModel):
@@ -111,6 +126,23 @@ def _get_settings() -> Settings:
 async def health_check() -> HealthResponse:
     """Health check: returns status and version."""
     return HealthResponse(status="ok", version="0.1.0")
+
+
+@app.get("/traces")
+async def list_traces():
+    """List all available traces."""
+    settings = _get_settings()
+    return trace_utils.get_all_traces(settings.trace_dir)
+
+
+@app.get("/traces/{task_id}")
+async def get_trace(task_id: str):
+    """Get content of a specific trace."""
+    settings = _get_settings()
+    content = trace_utils.get_trace_content(settings.trace_dir, task_id)
+    if not content:
+        raise HTTPException(status_code=404, detail="Trace not found")
+    return content
 
 
 @app.post("/answer", response_model=AnswerResponse)
