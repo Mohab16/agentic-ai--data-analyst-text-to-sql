@@ -63,6 +63,44 @@ Evidence rules:
 - When a query fails, read the message and use get_query_error_details if that is
   not enough. Fix the statement; do not resend it unchanged.
 - Prefer the schema digest, and use inspect_schema only for detail you need.
+- Division: in SQLite, integer division truncates. Always write ratios/rates as
+  `CAST(numerator AS REAL) / CAST(denominator AS REAL)` or `1.0 * numerator / denominator`
+  so the result is a float. Never write `a / b` when both are integer columns/expressions.
+- Rate calculations (CRITICAL - this is the #1 source of wrong answers):
+  To compute ANY rate (return rate, refund rate, cancellation rate, etc.):
+  
+  1. ALWAYS start FROM the denominator table (the "all items" table)
+     - Return rate: FROM order_items (all sold items)
+     - Refund rate: FROM orders (all placed orders)
+  
+  2. ALWAYS LEFT JOIN the numerator table (the "subset" table)
+     - Return rate: LEFT JOIN returns ON returns.order_item_id = order_items.id
+     - Refund rate: LEFT JOIN refunds ON refunds.order_id = orders.id
+  
+  3. ALWAYS use COALESCE on the numerator aggregate: COALESCE(SUM(r.quantity), 0)
+  
+  4. ALWAYS GROUP BY the dimension from the DENOMINATOR table
+     - Return rate: GROUP BY p.category (from products via order_items)
+  
+  WRONG PATTERN (produces 100% or inflated rates - ONLY sees returned items):
+    SELECT p.category, SUM(r.quantity)/SUM(oi.quantity) AS rate
+    FROM returns r
+    JOIN order_items oi ON r.order_item_id = oi.id
+    JOIN products p ON oi.product_id = p.id
+    GROUP BY p.category
+    -- Result: Sports 100%, Electronics 84%, ... (WRONG!)
+  
+  RIGHT PATTERN (correct rate - sees ALL items including non-returned):
+    SELECT p.category,
+           CAST(COALESCE(SUM(r.quantity), 0) AS REAL) / CAST(SUM(oi.quantity) AS REAL) AS rate
+    FROM order_items oi
+    JOIN products p ON oi.product_id = p.id
+    LEFT JOIN returns r ON r.order_item_id = oi.id
+    GROUP BY p.category
+    -- Result: Fashion 6.4%, Sports 5.4%, ... (CORRECT!)
+  
+  NEVER start FROM returns, refunds, cancellations, etc. for rate calculations.
+  ALWAYS start FROM the "all items" table and LEFT JOIN the subset.
 
 Budget: at most {max_queries} queries and {max_tool_turns} turns. Few broad queries
 beat many narrow ones.
@@ -384,7 +422,7 @@ def _validate_numbers(
                 ]
             )
         for key, value in finding.numbers.items():
-            if not any(_same_number(value, number) for number in allowed):
+            if not any(_same_number_exact(value, number) for number in allowed):
                 available = ", ".join(
                     f"{number:.10g}" for number in sorted(set(allowed))
                 ) or "none"
@@ -394,6 +432,15 @@ def _validate_numbers(
                         f"rows of any cited query; available: {available}"
                     ]
                 )
+
+
+def _same_number_exact(left: float, right: float) -> bool:
+    """Compare numbers exactly, preserving full precision from query results.
+    
+    Unlike _same_number (which uses 9g for tolerance), this requires exact match
+    to ensure findings copy numbers exactly from query rows without rounding.
+    """
+    return f"{left:.10g}" == f"{right:.10g}"
 
 
 def _harness_notes(

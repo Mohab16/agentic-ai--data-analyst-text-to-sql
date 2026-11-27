@@ -84,13 +84,17 @@ def make_planner(client: LLMClient) -> AgentFn:
         tokens_in = 0
         tokens_out = 0
 
+        # The planner structurally requires JSON output per its system prompt.
+        # Always use json_mode=True; the investigator has a fallback protocol.
+        planner_json_mode = True
+
         for attempt in (1, 2):
             try:
                 response = client.complete(
                     LLMRequest(
                         system=system,
                         messages=messages,
-                        json_mode=True,
+                        json_mode=planner_json_mode,
                         max_tokens=settings.llm_max_tokens,
                     )
                 )

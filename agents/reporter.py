@@ -136,6 +136,16 @@ def make_reporter(client: LLMClient) -> AgentFn:
                 extract_json(response.text), evidence=evidence, plan=plan
             )
         except ReplyInvalid as exc:
+            # Build available numbers info from evidence for the repair instruction
+            citable = _citable_queries(evidence)
+            by_query = _numbers_by_query(evidence)
+            available_parts = []
+            for query_id in citable:
+                if query_id in by_query and by_query[query_id]:
+                    nums = ", ".join(f"{n:.10g}" for n in sorted(set(by_query[query_id])))
+                    available_parts.append(f"  {query_id}: {nums}")
+            available_str = "\n".join(available_parts) if available_parts else "  (none)"
+            
             repair_instruction_text = repair_instruction(
                 exc.problems,
                 validator="answer validator",
@@ -148,11 +158,11 @@ def make_reporter(client: LLMClient) -> AgentFn:
                     role="user",
                     content=(
                         repair_instruction_text
-                        + "\n\nFor numeric findings, use only the values listed as "
-                        "available by the validator for that finding's cited query "
-                        "ids. Copy the value exactly or remove that number key; do "
-                        "not substitute a count or another metric from a query "
-                        "preview."
+                        + "\n\nAvailable numbers from cited queries (COPY EXACTLY):\n"
+                        + available_str
+                        + "\n\nFor numeric findings, use only the values listed above. "
+                        "Copy the value exactly as shown (including all decimal places). "
+                        "Do not round, compute, or substitute any other value."
                     ),
                 ),
             ]
@@ -365,7 +375,7 @@ def _numbers(
         if not math.isfinite(float(raw)):
             problems.append(f"{where}.numbers[{key!r}] must be finite")
             continue
-        if not any(_same_number(float(raw), number) for number in allowed):
+        if not any(_same_number_exact(float(raw), number) for number in allowed):
             available = ", ".join(f"{number:.10g}" for number in sorted(set(allowed)))
             problems.append(
                 f"{where}.numbers[{key!r}]={float(raw):.10g} is not in the evidence "
@@ -375,6 +385,16 @@ def _numbers(
             continue
         numbers[key] = float(raw)
     return numbers
+
+
+def _same_number_exact(left: float, right: float) -> bool:
+    """Compare numbers exactly, preserving full precision from investigation.
+    
+    Unlike _same_number (which uses 9g for tolerance), this requires exact match
+    to ensure the reporter copies numbers exactly from investigation findings
+    without rounding or computation (per D-22).
+    """
+    return f"{left:.10g}" == f"{right:.10g}"
 
 
 def _same_number(left: float, right: float) -> bool:
@@ -464,12 +484,27 @@ def _confidence(value: Any, problems: list[str]) -> str:
     Returns the confidence value or None if invalid, letting the caller
     handle the problem consistently.
     """
-    if not isinstance(value, str) or value.strip().lower() not in _CONFIDENCE:
+    if not isinstance(value, str):
         problems.append(
             "confidence must be one of " + ", ".join(repr(item) for item in _CONFIDENCE)
         )
         return "medium"
-    return value.strip().lower()
+    
+    # Extract the first word (handles "high confidence", "HIGH", etc.)
+    words = value.strip().lower().split()
+    if not words:
+        problems.append(
+            "confidence must be one of " + ", ".join(repr(item) for item in _CONFIDENCE)
+        )
+        return "medium"
+    
+    confidence = words[0]
+    if confidence not in _CONFIDENCE:
+        problems.append(
+            "confidence must be one of " + ", ".join(repr(item) for item in _CONFIDENCE)
+        )
+        return "medium"
+    return confidence
 
 
 # --------------------------------------------------------------------------
