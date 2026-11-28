@@ -2101,15 +2101,6 @@
 
         async function refreshTraceList() { loadTraceList(); }
 
-        // ---------- Progress Step Update ----------
-        function setProgress(stepIdx, status) {
-            const stepItems = document.querySelectorAll('.step-item');
-            stepItems.forEach(s => s.classList.remove('active','running','done'));
-            if (stepIdx >= 0 && stepIdx < stepItems.length) stepItems[stepIdx].classList.add(status || 'active');
-            // Mark earlier as done
-            for (let i=0; i<Math.min(stepIdx, stepItems.length); i++) stepItems[i].classList.add('done');
-        }
-
         // ---------- Submit Question to /answer ----------
         async function submitQuestion() {
             const q = $('#question-input').value.trim();
@@ -2148,12 +2139,10 @@
                 // Investigate clicked - progress lifecycle
                 // Phase 1: Plan completed immediately, progress animates 0% → 33.33% over 3s
                 setProgress(1, 'done'); // Plan completed
-                setProgressBar(33.33); // Animate to 33.33% over 3s via CSS transition
                 
                 // Wait 3 seconds, then Execute completes
                 setTimeout(() => {
                     setProgress(2, 'done'); // Execute completed
-                    setProgressBar(66.67); // Animate to 66.67% over 3s via CSS transition
                     
                     // WAIT for actual final response (do NOT auto-complete Answer)
                     // The progress stays at 66.67% until the real response arrives
