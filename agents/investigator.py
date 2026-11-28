@@ -102,6 +102,23 @@ Evidence rules:
   NEVER start FROM returns, refunds, cancellations, etc. for rate calculations.
   ALWAYS start FROM the "all items" table and LEFT JOIN the subset.
 
+- Numbers in findings (CRITICAL):
+  Every number in a finding's `numbers` object MUST appear as an actual column value
+  in the ROWS of a cited query (the data cells), NOT in the query metadata.
+  
+  ALLOWED (appear in row data):
+  - Column values from SELECT results (e.g., order_count=48, revenue=1234.56)
+  - Aggregated values computed in SQL and returned as columns (e.g., total_revenue=50000)
+  
+  FORBIDDEN (metadata, NOT in row data):
+  - row_count (how many rows the query returned)
+  - query_id, duration_ms, truncated, columns
+  - Any value from the query result header/metadata section
+  
+  Example: A query returns 96 rows with column "order_count" having values 48, 49, 52...
+  VALID: {{"order_count": 48, "order_count": 49, ...}}  -- these appear in rows
+  INVALID: {{"row_count": 96}}  -- 96 is metadata, not a row value
+
 Budget: at most {max_queries} queries and {max_tool_turns} turns. Few broad queries
 beat many narrow ones.
 
