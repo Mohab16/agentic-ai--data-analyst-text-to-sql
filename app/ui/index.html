@@ -2136,26 +2136,17 @@
                     return;
                 }
 
-                // Investigate clicked - progress lifecycle
-                // Phase 1: Plan completed immediately, progress animates 0% → 33.33% over 3s
-                setProgress(1, 'done'); // Plan completed
+                // Render the answer immediately (the /answer endpoint returns the full response)
+                renderAnswer(data);
                 
-                // Wait 3 seconds, then Execute completes
-                setTimeout(() => {
-                    setProgress(2, 'done'); // Execute completed
-                    
-                    // WAIT for actual final response (do NOT auto-complete Answer)
-                    // The progress stays at 66.67% until the real response arrives
-                    
-                    // If response already arrived before the 3s timeout, handle it
-                    if (typeof window._investigationResponse !== 'undefined') {
-                        handleFinalResponse(window._investigationResponse);
-                    }
-                }, 3000);
+                // Complete the progress
+                setProgress(3, 'done');
                 
-                // Store reference for when actual response arrives
-                // The backend will set this when it sends the final response
-                window._investigationResponse = data;
+                // Reset button state
+                const btn = $('#ask-btn');
+                btn.disabled = false;
+                btn.classList.remove('loading');
+                
             } catch(e) { 
                 alert('Network error: ' + e); 
                 resetWorkbench(); 
