@@ -2106,6 +2106,9 @@
             const q = $('#question-input').value.trim();
             if (!q) { alert('Enter a question'); return; }
             
+            // Reset workbench to clear previous investigation data
+            resetWorkbench();
+            
             const btn = $('#ask-btn');
             btn.disabled = true;
             btn.classList.add('loading');
